@@ -1,16 +1,10 @@
 #include "squirrel_people_tracker/follow_child.h"
-#include <actionlib/client/simple_action_client.h>
-#include <string>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <tf/tf.h>
-#include <actionlib/client/terminal_state.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_types.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/common/common.h>
 #include "pcl_ros/point_cloud.h"
-#include <pcl/io/pcd_io.h>
 
 #include "squirrel_view_controller_msgs/LookAtPosition.h"
 
@@ -76,7 +70,31 @@ void ChildFollowingAction::preemptCB()
   as_.setPreempted();
 }
 
-void ChildFollowingAction::analysisCB(const people_msgs::PositionMeasurementArray::ConstPtr &msg)
+double ChildFollowingAction::calculateDistance(geometry_msgs::PoseStamped pose1, geometry_msgs::PoseStamped pose2)
+{
+  geometry_msgs::PoseStamped tmp_pose;
+  double distance;
+  double x;
+  double y;
+  ros::Time now = ros::Time::now();
+
+  try{
+      tfl_.waitForTransform(pose1.header.frame_id, pose2.header.frame_id, now, ros::Duration(1.0));
+      tfl_.transformPose("hokuyo_link", pose1, tmp_pose);
+  } catch (tf::TransformException ex) {
+      ROS_WARN("Failed to retrieve most recent transfrom.");
+      return 1000.0;
+  }
+
+  x = tmp_pose.pose.position.x - pose2.pose.position.x;
+  y = tmp_pose.pose.position.y - pose2.pose.position.y;
+
+  distance = pow(x, 2) + pow(y, 2);
+  distance = sqrt(distance);
+  return distance;
+}
+
+void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPersons::ConstPtr &msg)
 {
   ROS_INFO("Data received. processing ...");
   // make sure that the action hasn't been canceled
@@ -85,7 +103,7 @@ void ChildFollowingAction::analysisCB(const people_msgs::PositionMeasurementArra
     ROS_DEBUG("Action server %s is no longer active. Exiting.", action_name_.c_str());
     return;
   }
-  if (msg->people.size() == 0)
+  if (msg->tracks.size() == 0)
   {
     ROS_DEBUG("No people in message"); 
     return;
@@ -110,19 +128,24 @@ void ChildFollowingAction::analysisCB(const people_msgs::PositionMeasurementArra
 
   bool child_present = false;
   // calculate distance to select the closest personCB
-  for (size_t i = 0; i < msg->people.size(); ++i)
+
+  tmp_pose.header.stamp = ros::Time(0);
+  tmp_pose.header.frame_id = "hokuyo_link";
+  tmp_pose.pose.position.x = 0.0;
+  tmp_pose.pose.position.y = 0.0;
+  tmp_pose.pose.orientation =  tf::createQuaternionMsgFromYaw(0.0);
+
+  for (size_t i = 0; i < msg->tracks.size(); ++i)
   {
-    double distance = (sqrt(msg->people[i].pos.x*msg->people[i].pos.x + msg->people[i].pos.y*msg->people[i].pos.y));
+    child_pose.header.stamp = ros::Time(0);
+    child_pose.header.frame_id = "map";
+    child_pose.pose = msg->tracks[i].pose.pose;
 
-    tmp_pose.header.stamp = ros::Time(0);
-    tmp_pose.header.frame_id = "hokuyo_link";
-    tmp_pose.pose.position.x = msg->people[i].pos.x;
-    tmp_pose.pose.position.y = msg->people[i].pos.y;
-    tmp_pose.pose.orientation =  tf::createQuaternionMsgFromYaw(0.0);
+    double distance = calculateDistance(child_pose, tmp_pose);
+    tmp_pose.pose.position.z = 1.3;
     LookAtChild(&tmp_pose);
-    child_present = VerifyChildAtPose(&tmp_pose, height);
 
-    if (distance < min_distance && child_present)
+    if (distance < min_distance)
     {
       LookAtChild(&tmp_pose, height);
       index = i;
@@ -133,23 +156,8 @@ void ChildFollowingAction::analysisCB(const people_msgs::PositionMeasurementArra
   // we did not detect a child
   if (index == 0)
     return;
+  child_pose.pose = msg->tracks[index].pose.pose;
 
-  double alpha = 0.0;
-  tmp_pose.header.stamp = ros::Time(0);
-  tmp_pose.header.frame_id = "hokuyo_link";
-  tmp_pose.pose.position.x = msg->people[index].pos.x;
-  tmp_pose.pose.position.y = msg->people[index].pos.y;
-  tmp_pose.pose.orientation =  tf::createQuaternionMsgFromYaw(alpha);
-  try{
-    ros::Time now = ros::Time(0);
-    tfl_.waitForTransform("hokuyo_link", "map", now, ros::Duration(3.0));
-    tfl_.transformPose("map", tmp_pose, child_pose);
-  }
-  catch (tf::TransformException ex){
-    ROS_ERROR("%s",ex.what());
-    ros::Duration(1.0).sleep();
-    return;
-  }
   ROS_DEBUG("Person detected at (x, y): (%f, %f) hokuyo_link", tmp_pose.pose.position.x, tmp_pose.pose.position.y);
   ROS_INFO("Person detected at (x, y): (%f, %f) map", child_pose.pose.position.x, child_pose.pose.position.y);
 
@@ -167,7 +175,7 @@ void ChildFollowingAction::analysisCB(const people_msgs::PositionMeasurementArra
   }
   
   // calculate a point between the child and the robot
-  alpha = atan2(tmp_pose.pose.position.y, tmp_pose.pose.position.x);
+  double alpha = atan2(tmp_pose.pose.position.y, tmp_pose.pose.position.x);
   double k = sqrt(tmp_pose.pose.position.x * tmp_pose.pose.position.x + tmp_pose.pose.position.y * tmp_pose.pose.position.y);
   ROS_DEBUG("k: %f, alpha: %f", k, alpha);
   ROS_DEBUG("sin(alpha): %f, cos(alpha): %f", sin(alpha), cos(alpha));

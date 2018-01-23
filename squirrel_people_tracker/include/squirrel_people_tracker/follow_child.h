@@ -10,6 +10,7 @@
 #ifndef FOLLOW_CHILD_H
 #define FOLLOW_CHILD_H
 
+#include<math.h>
 #include <ros/ros.h>
 #include <std_msgs/String.h>
 #include <boost/thread/mutex.hpp>
@@ -23,6 +24,8 @@
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
 #include <tf/transform_listener.h>
+#include <spencer_tracking_msgs/TrackedPerson.h>
+#include <spencer_tracking_msgs/TrackedPersons.h>
 
 
 class ChildFollowingAction
@@ -68,7 +71,8 @@ public:
 
   void goalCB();
   void preemptCB();
-  void analysisCB(const people_msgs::PositionMeasurementArray::ConstPtr &msg);
+  void analysisCB(const spencer_tracking_msgs::TrackedPersons::ConstPtr &msg);
+  double calculateDistance(geometry_msgs::PoseStamped pose1, geometry_msgs::PoseStamped pose2);
 
   ChildFollowingAction(std::string name);
   ~ChildFollowingAction();
