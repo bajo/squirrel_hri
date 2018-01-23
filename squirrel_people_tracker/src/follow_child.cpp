@@ -80,7 +80,7 @@ double ChildFollowingAction::calculateDistance(geometry_msgs::PoseStamped pose1,
 
   try{
       tfl_.waitForTransform(pose1.header.frame_id, pose2.header.frame_id, now, ros::Duration(1.0));
-      tfl_.transformPose("hokuyo_link", pose1, tmp_pose);
+      tfl_.transformPose(pose2.header.frame_id, pose1, tmp_pose);
   } catch (tf::TransformException ex) {
       ROS_WARN("Failed to retrieve most recent transfrom.");
       return 1000.0;
@@ -138,7 +138,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   for (size_t i = 0; i < msg->tracks.size(); ++i)
   {
     child_pose.header.stamp = ros::Time(0);
-    child_pose.header.frame_id = "map";
+    child_pose.header.frame_id = msg->header.frame_id;
     child_pose.pose = msg->tracks[i].pose.pose;
 
     double distance = calculateDistance(child_pose, tmp_pose);
