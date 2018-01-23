@@ -1,0 +1,23 @@
+<launch>
+  <arg name="hostname" default="localhost" />
+  <arg name="robot" default="tuw-robotino2" />
+
+  <remap from="/spencer/sensors/laser_front/echo0" to="/scan"/>
+  <include file="$(find spencer_people_tracking_launch)/launch/detectors/laser_detectors.launch">
+    <arg name="rear" value="false"/>
+  </include>
+
+  <include file="$(find spencer_people_tracking_launch)/launch/detectors/front_rgbd_detectors.launch">
+  </include>
+
+  <include file="$(find spencer_detected_person_association)/launch/detection_to_detection_fusion_pipeline.launch" >
+    <arg name="rgbd" value="true"/>
+  </include>
+
+  <include file="$(find srl_nearest_neighbor_tracker)/launch/nnt.launch" >
+  </include>
+
+  <node pkg="squirrel_people_tracker" type="squirrel_follow_child_node" name="squirrel_follow_child_node" output="screen"/>
+<!--
+-->
+</launch>
