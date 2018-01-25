@@ -17,7 +17,7 @@
   <include file="$(find srl_nearest_neighbor_tracker)/launch/nnt.launch" >
   </include>
 
-  <node pkg="squirrel_people_tracker" type="squirrel_follow_child_node" name="squirrel_follow_child_node" output="screen"/>
 <!--
+  <node pkg="squirrel_people_tracker" type="squirrel_follow_child_node" name="squirrel_follow_child_node" output="screen"/>
 -->
 </launch>
