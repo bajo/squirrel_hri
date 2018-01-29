@@ -72,7 +72,7 @@ public:
   void goalCB();
   void preemptCB();
   void analysisCB(const spencer_tracking_msgs::TrackedPersons::ConstPtr &msg);
-  double calculateDistance(geometry_msgs::PoseStamped pose1, geometry_msgs::PoseStamped pose2);
+  double calculateDistanceFromRobot(geometry_msgs::PoseStamped pose1);
 
   ChildFollowingAction(std::string name);
   ~ChildFollowingAction();
