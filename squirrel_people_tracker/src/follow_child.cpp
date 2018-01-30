@@ -34,7 +34,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   if (!move_base_ac_->waitForServer(ros::Duration(5.0)))
   {
     ROS_ERROR("Waiting for the move_base action server to come up");
-    //return;
+    return;
   }
   distance_ = 0.8;
   // register the goal and feeback callbacks
@@ -109,7 +109,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     ROS_DEBUG("Action server %s is no longer active. Exiting.", action_name_.c_str());
     return;
   }
-  ROS_INFO("Data received and action started.");
+  ROS_DEBUG("Data received and action started.");
   if (msg->tracks.size() == 0)
   {
     ROS_DEBUG("No people in message"); 
@@ -146,7 +146,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     //tmp_pose.pose.position.z = 1.3;
     //LookAtChild(&tmp_pose);
 
-    ROS_INFO("Current distance is: %lf", distance);
+    ROS_DEBUG("Current distance is: %lf", distance);
     if (distance < min_distance)
     {
       //LookAtChild(&tmp_pose, height);
@@ -155,7 +155,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     }
   }
   detection_pose.pose = msg->tracks[index].pose.pose;
-  ROS_INFO("Closest distance is: %lf", min_distance);
+  ROS_DEBUG("Closest distance is: %lf", min_distance);
 
   try{
     ros::Time now = ros::Time(0);
@@ -172,8 +172,8 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     return;
   }
 
-  ROS_INFO("Person detected at (x, y): (%f, %f) %s", child_pose.pose.position.x, child_pose.pose.position.y, child_pose.header.frame_id.c_str());
-  ROS_INFO("Person detected at (x, y): (%f, %f) %s", tmp_pose.pose.position.x, tmp_pose.pose.position.y, tmp_pose.header.frame_id.c_str());
+  ROS_DEBUG("Person detected at (x, y): (%f, %f) %s", child_pose.pose.position.x, child_pose.pose.position.y, child_pose.header.frame_id.c_str());
+  ROS_DEBUG("Person detected at (x, y): (%f, %f) %s", tmp_pose.pose.position.x, tmp_pose.pose.position.y, tmp_pose.header.frame_id.c_str());
 
   // check if the child is in one of the target areas
   for (size_t i=0; i < goal_->target_locations.size(); ++i)
@@ -191,8 +191,8 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   // calculate a point between the child and the robot
   double alpha = atan2(tmp_pose.pose.position.y, tmp_pose.pose.position.x);
   double k = sqrt(tmp_pose.pose.position.x * tmp_pose.pose.position.x + tmp_pose.pose.position.y * tmp_pose.pose.position.y);
-  ROS_INFO("k: %f, alpha: %f", k, alpha);
-  ROS_INFO("sin(alpha): %f, cos(alpha): %f", sin(alpha), cos(alpha));
+  ROS_DEBUG("k: %f, alpha: %f", k, alpha);
+  ROS_DEBUG("sin(alpha): %f, cos(alpha): %f", sin(alpha), cos(alpha));
   
   tmp_pose.header.stamp = ros::Time(0);
   tmp_pose.header.frame_id = "hokuyo_link";
@@ -212,12 +212,12 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     ros::Duration(1.0).sleep();
     return;
   }
-  if (fabs(last_goal_.position.x - out_pose.pose.position.x) < 0.25 && 
-      fabs(last_goal_.position.y - out_pose.pose.position.y) < 0.25 &&
+  if (fabs(last_goal_.position.x - out_pose.pose.position.x) < 0.10 &&
+      fabs(last_goal_.position.y - out_pose.pose.position.y) < 0.10 &&
       fabs(tf::getYaw(last_goal_.orientation) - tf::getYaw(out_pose.pose.orientation) < 0.26)) //~15 degree
   {
-  ROS_INFO("Last goal was (x, y): (%f, %f) map", last_goal_.position.x, last_goal_.position.y);
-  ROS_INFO("Current nav goal would be (x, y): (%f, %f) map", out_pose.pose.position.x, out_pose.pose.position.y);
+  ROS_DEBUG("Last goal was (x, y): (%f, %f) map", last_goal_.position.x, last_goal_.position.y);
+  ROS_DEBUG("Current nav goal would be (x, y): (%f, %f) map", out_pose.pose.position.x, out_pose.pose.position.y);
     ROS_INFO("current goal and last goal are close to each other. Do not send new goal");
   publishGoalMarker(out_pose.pose.position.x, out_pose.pose.position.y, out_pose.pose.position.z, 0.0, 1.0, 0.0, "child_goal");
     return;
@@ -238,11 +238,11 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   move_base_goal_.target_pose.pose.orientation = out_pose.pose.orientation;
 
   ROS_INFO("Sending goal to move_base");
-  //move_base_ac_->sendGoal(move_base_goal_);
+  move_base_ac_->sendGoal(move_base_goal_);
   //LookAtChild(&child_pose);
 
   init_ = ros::Time::now();
-  //ros::Duration(0.1).sleep();
+  ros::Duration(0.25).sleep();
 }
 
 void ChildFollowingAction::publishGoalMarker(float x, float y, float z, float red, float green, float blue, const char* name)
