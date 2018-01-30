@@ -62,10 +62,13 @@ public:
   ros::ServiceClient pan_speed_client_;
   ros::ServiceClient tilt_speed_client_;
   ros::ServiceClient pan_tilt_client_;
+  ros::ServiceClient costmap_client_;
+  ros::ServiceClient octomap_client_;
   ros::Publisher pan_pub_;
   ros::Publisher tilt_pub_;
   ros::Publisher vis_pub_;
   ros::Publisher pub_;
+  ros::Publisher octomap_pub_;
   ros::Publisher cloud_pub_;
   ros::Subscriber sub_;
 

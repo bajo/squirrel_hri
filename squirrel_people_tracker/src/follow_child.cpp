@@ -5,6 +5,8 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/common/common.h>
 #include "pcl_ros/point_cloud.h"
+#include <std_msgs/Bool.h>
+#include <std_srvs/Empty.h>
 
 #include "squirrel_view_controller_msgs/LookAtPosition.h"
 
@@ -23,6 +25,20 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   init_ = ros::Time::now();
   id_ = 0;
   
+  octomap_client_= nh_.serviceClient<std_srvs::Empty>("/squirrel_3d_mapping/reset", true);
+  if (!(ros::service::waitForService(octomap_client_.getService(), ros::Duration(5.0))))
+  {
+    ROS_ERROR("wait for service %s failed", octomap_client_.getService().c_str());
+    return;
+  }
+
+  costmap_client_= nh_.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps", true);
+  if (!(ros::service::waitForService(costmap_client_.getService(), ros::Duration(5.0))))
+  {
+    ROS_ERROR("wait for service %s failed", costmap_client_.getService().c_str());
+    return;
+  }
+
   pan_tilt_client_ = nh_.serviceClient<squirrel_view_controller_msgs::LookAtPosition>("/squirrel_view_controller/look_at_position", true);
   if (!(ros::service::waitForService(pan_tilt_client_.getService(), ros::Duration(5.0))))
   {
@@ -48,6 +64,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   // publishers
   pub_ = nh_.advertise<geometry_msgs::PoseStamped>("published_topic", 1);
   vis_pub_ = nh_.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );
+  octomap_pub_ = nh_.advertise<std_msgs::Bool>( "squirrel_3d_mapping/update", 0 );
   cloud_pub_ = nh_.advertise<pcl::PointCloud<PointT> > ("filtered_cloud", 5, true);
   ROS_INFO("Ready to accept goals...");
 }
@@ -67,6 +84,9 @@ void ChildFollowingAction::goalCB()
 
 void ChildFollowingAction::preemptCB()
 {
+  std_msgs::Bool octomap_update;
+  octomap_update.data = true;
+  octomap_pub_.publish(octomap_update);
   ROS_INFO("%s: Preempted", action_name_.c_str());
   // set the action state to preempted
   as_.setPreempted();
@@ -115,6 +135,12 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     ROS_DEBUG("No people in message"); 
     return;
   }
+  std_msgs::Bool octomap_update;
+  octomap_update.data = false;
+  octomap_pub_.publish(octomap_update);
+  std_srvs::Empty empty;
+  octomap_client_.call(empty);
+  costmap_client_.call(empty);
 
   geometry_msgs::PoseStamped robot_pose, child_pose, tmp_pose, out_pose, detection_pose;
   move_base_msgs::MoveBaseGoal move_base_goal_;
@@ -181,6 +207,8 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     if ((fabs(child_pose.pose.position.x - goal_->target_locations[i].x) < 0.5) &&
         (fabs(child_pose.pose.position.y - goal_->target_locations[i].y) < 0.5))
     {
+      octomap_update.data = true;
+      octomap_pub_.publish(octomap_update);
       // make sure we stop now
       ROS_INFO("%s: Succeeded", action_name_.c_str());
       result_.final_location = child_pose;
