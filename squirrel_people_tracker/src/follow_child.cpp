@@ -7,8 +7,11 @@
 #include "pcl_ros/point_cloud.h"
 #include <std_msgs/Bool.h>
 #include <std_srvs/Empty.h>
+#include <grid_map_ros/grid_map_ros.hpp>
+#include <nav_msgs/GetMap.h>
 
-#include "squirrel_view_controller_msgs/LookAtPosition.h"
+
+#include <squirrel_view_controller_msgs/LookAtPosition.h>
 
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
@@ -46,6 +49,17 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
     return;
   }
 
+  static_map_client_ = nh_.serviceClient<nav_msgs::GetMap>("/static_map", true);
+  if (!(ros::service::waitForService(static_map_client_.getService(), ros::Duration(5.0))))
+  {
+    ROS_ERROR("wait for service %s failed", static_map_client_.getService().c_str());
+    return;
+  }
+  nav_msgs::GetMap srv;
+  static_map_client_.call(srv);
+  grid_map::GridMapRosConverter::fromOccupancyGrid(srv.response.map, "static", map_);
+
+
   move_base_ac_ = new MoveBaseClient("move_base", true);
   if (!move_base_ac_->waitForServer(ros::Duration(5.0)))
   {
@@ -59,6 +73,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
 
   // subscribe to the data topic of interest
   sub_ = nh_.subscribe("/spencer/perception/tracked_persons", 1, &ChildFollowingAction::analysisCB, this);
+  costmap_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/map", 1, &ChildFollowingAction::processCostmapCB, this);
   as_.start();
 
   // publishers
@@ -68,6 +83,12 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   cloud_pub_ = nh_.advertise<pcl::PointCloud<PointT> > ("filtered_cloud", 5, true);
   ROS_INFO("Ready to accept goals...");
 }
+
+void ChildFollowingAction::processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg)
+{
+
+}
+
 
 void ChildFollowingAction::goalCB()
 {

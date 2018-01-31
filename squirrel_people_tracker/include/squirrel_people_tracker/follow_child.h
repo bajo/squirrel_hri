@@ -26,6 +26,8 @@
 #include <tf/transform_listener.h>
 #include <spencer_tracking_msgs/TrackedPerson.h>
 #include <spencer_tracking_msgs/TrackedPersons.h>
+#include <nav_msgs/OccupancyGrid.h>
+#include <grid_map_core/grid_map_core.hpp>
 
 
 class ChildFollowingAction
@@ -47,6 +49,8 @@ protected:
   tf::TransformListener listener_;
   ros::Time init_;
   geometry_msgs::Pose last_goal_;
+  grid_map::GridMap map_;
+
 
   int id_;
   double distance_;
@@ -64,6 +68,7 @@ public:
   ros::ServiceClient pan_tilt_client_;
   ros::ServiceClient costmap_client_;
   ros::ServiceClient octomap_client_;
+  ros::ServiceClient static_map_client_;
   ros::Publisher pan_pub_;
   ros::Publisher tilt_pub_;
   ros::Publisher vis_pub_;
@@ -71,11 +76,13 @@ public:
   ros::Publisher octomap_pub_;
   ros::Publisher cloud_pub_;
   ros::Subscriber sub_;
+  ros::Subscriber costmap_sub_;
 
   void goalCB();
   void preemptCB();
   void analysisCB(const spencer_tracking_msgs::TrackedPersons::ConstPtr &msg);
   double calculateDistanceFromRobot(geometry_msgs::PoseStamped pose1);
+  void processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg);
 
   ChildFollowingAction(std::string name);
   ~ChildFollowingAction();
