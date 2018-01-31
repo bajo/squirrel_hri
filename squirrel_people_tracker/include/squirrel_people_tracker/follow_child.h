@@ -28,6 +28,7 @@
 #include <spencer_tracking_msgs/TrackedPersons.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <grid_map_core/grid_map_core.hpp>
+#include <grid_map_core/GridMap.hpp>
 
 
 class ChildFollowingAction
@@ -59,6 +60,7 @@ protected:
   void LookAtChild(geometry_msgs::PoseStamped* pose, double height = 1.5);
   void publishGoalMarker(float x, float y, float z, float red, float green, float blue, const char* name);
   bool VerifyChildAtPose(geometry_msgs::PoseStamped* pose,  double &height, double margin = 0.6);
+  void printGridMap();
 
 public:
   tf::StampedTransform transform;

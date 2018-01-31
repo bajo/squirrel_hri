@@ -66,6 +66,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
     ROS_ERROR("Waiting for the move_base action server to come up");
     return;
   }
+
   distance_ = 0.8;
   // register the goal and feeback callbacks
   as_.registerGoalCallback(boost::bind(&ChildFollowingAction::goalCB, this));
@@ -82,6 +83,19 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   octomap_pub_ = nh_.advertise<std_msgs::Bool>( "squirrel_3d_mapping/update", 0 );
   cloud_pub_ = nh_.advertise<pcl::PointCloud<PointT> > ("filtered_cloud", 5, true);
   ROS_INFO("Ready to accept goals...");
+}
+
+void ChildFollowingAction::printGridMap()
+{
+  std::cout << "Map resolution: " << map_.getResolution() << " size x: " << map_.getSize()(0) << " y: "
+            << map_.getSize()(1) << std::endl;
+  std::cout << "Map dimensions in meters. x: " << map_.getLength().x() << " y: " << map_.getLength().y()
+            << std::endl;
+  grid_map::Matrix& data = map_["static"];
+  for (grid_map::GridMapIterator iterator(map_); !iterator.isPastEnd(); ++iterator) {
+    const grid_map::Index index(*iterator);
+    std::cout << "The value at index " << index.transpose() << " is " << data(index(0), index(1)) << std::endl;
+  }
 }
 
 void ChildFollowingAction::processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg)

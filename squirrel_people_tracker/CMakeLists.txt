@@ -1,18 +1,21 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(squirrel_people_tracker)
-
 add_compile_options( -std=c++11 )
 
+
 find_package(catkin REQUIRED
-std_srvs roscpp squirrel_speech_msgs squirrel_hri_msgs sensor_msgs move_base_msgs pcl_conversions pcl_ros geometry_msgs people_msgs std_msgs tf squirrel_view_controller_msgs
-        grid_map_core grid_map_ros nav_msgs
+std_srvs roscpp squirrel_speech_msgs squirrel_hri_msgs sensor_msgs move_base_msgs pcl_conversions pcl_ros geometry_msgs people_msgs std_msgs tf squirrel_view_controller_msgs grid_map_core grid_map_ros nav_msgs
 
     COMPONENTS
         geometry_msgs
+        grid_map_core
+        grid_map_ros
         move_base_msgs
+        nav_msgs
         pcl_conversions
         pcl_ros
         people_msgs
+        robotino_msgs
         roscpp
         sensor_msgs
         spencer_tracking_msgs
@@ -22,9 +25,6 @@ std_srvs roscpp squirrel_speech_msgs squirrel_hri_msgs sensor_msgs move_base_msg
         std_srvs
         tf
         visualization_msgs
-        grid_map_core
-        grid_map_ros
-        nav_msgs
 )
 
 find_package(Boost REQUIRED COMPONENTS system)
@@ -34,21 +34,23 @@ catkin_package(
     INCLUDE_DIRS include
     CATKIN_DEPENDS
         geometry_msgs
+        grid_map_core
+        grid_map_ros
         move_base_msgs
+        nav_msgs
         pcl_conversions
         pcl_ros
         people_msgs
+        robotino_msgs
         roscpp
         sensor_msgs
+        spencer_tracking_msgs
         squirrel_hri_msgs
         squirrel_view_controller_msgs
         std_msgs
         std_srvs
         tf
         visualization_msgs
-        grid_map_core
-        grid_map_ros
-        nav_msgs
     LIBRARIES
         squirrel_focus_on_head
 )
@@ -123,7 +125,7 @@ install(
 )
 install(
     FILES
-        startup.launch
+        startup.launch spencer.launch
         DESTINATION
         ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
