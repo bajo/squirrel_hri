@@ -68,8 +68,6 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   as_.registerGoalCallback(boost::bind(&ChildFollowingAction::goalCB, this));
   as_.registerPreemptCallback(boost::bind(&ChildFollowingAction::preemptCB, this));
 
-  // subscribe to the data topic of interest
-  sub_ = nh_.subscribe("/spencer/perception/tracked_persons", 1, &ChildFollowingAction::analysisCB, this);
   costmap_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/move_base/global_costmap/costmap", 1, &ChildFollowingAction::processCostmapCB, this);
   as_.start();
 
@@ -100,11 +98,33 @@ void ChildFollowingAction::printGridMap()
   }
 }
 
+bool ChildFollowingAction::verifyDetection(const geometry_msgs::PoseStamped pose)
+{
+  geometry_msgs::PoseStamped map_pose;
+  try{
+    ros::Time now = ros::Time(0);
+    tfl_.waitForTransform(pose.header.frame_id, "map",
+                            now, ros::Duration(3.0));
+    tfl_.transformPose("map", pose, map_pose);
+  }
+  catch (tf::TransformException ex){
+    ROS_ERROR("%s",ex.what());
+    ros::Duration(1.0).sleep();
+    return false;
+  }
+
+  std::cout << map_pose.header.frame_id << std::endl;
+  grid_map::Position position(map_pose.pose.position.x, map_pose.pose.position.y);
+  if (map_.atPosition("static", position) < 40)
+      return true;
+  return false;
+}
+
 void ChildFollowingAction::processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg)
 {
   std::cout << "map: resolution: " << msg->info.resolution << std::endl;
   grid_map::GridMapRosConverter::fromOccupancyGrid(*msg, "static", map_);
-  printGridMap();
+  //printGridMap();
   costmap_sub_.shutdown();
 
 }
@@ -208,6 +228,8 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   for (size_t i = 0; i < msg->tracks.size(); ++i)
   {
     detection_pose.pose = msg->tracks[i].pose.pose;
+    if (!verifyDetection(detection_pose))
+        continue;
 
     distance = calculateDistanceFromRobot(detection_pose);
     //tmp_pose.pose.position.z = 1.3;

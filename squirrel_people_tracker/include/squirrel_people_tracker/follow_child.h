@@ -61,6 +61,7 @@ protected:
   void publishGoalMarker(float x, float y, float z, float red, float green, float blue, const char* name);
   bool VerifyChildAtPose(geometry_msgs::PoseStamped* pose,  double &height, double margin = 0.6);
   void printGridMap();
+  bool verifyDetection(const geometry_msgs::PoseStamped pose);
 
 public:
   tf::StampedTransform transform;
