@@ -55,10 +55,6 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
     ROS_ERROR("wait for service %s failed", static_map_client_.getService().c_str());
     return;
   }
-  nav_msgs::GetMap srv;
-  static_map_client_.call(srv);
-  grid_map::GridMapRosConverter::fromOccupancyGrid(srv.response.map, "static", map_);
-
 
   move_base_ac_ = new MoveBaseClient("move_base", true);
   if (!move_base_ac_->waitForServer(ros::Duration(5.0)))
@@ -74,7 +70,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
 
   // subscribe to the data topic of interest
   sub_ = nh_.subscribe("/spencer/perception/tracked_persons", 1, &ChildFollowingAction::analysisCB, this);
-  costmap_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/map", 1, &ChildFollowingAction::processCostmapCB, this);
+  costmap_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/move_base/global_costmap/costmap", 1, &ChildFollowingAction::processCostmapCB, this);
   as_.start();
 
   // publishers
@@ -87,19 +83,29 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
 
 void ChildFollowingAction::printGridMap()
 {
+  std::cout << "Map frame: " << map_.getFrameId() << std::endl;
   std::cout << "Map resolution: " << map_.getResolution() << " size x: " << map_.getSize()(0) << " y: "
             << map_.getSize()(1) << std::endl;
   std::cout << "Map dimensions in meters. x: " << map_.getLength().x() << " y: " << map_.getLength().y()
             << std::endl;
   grid_map::Matrix& data = map_["static"];
+  grid_map::Position position;
   for (grid_map::GridMapIterator iterator(map_); !iterator.isPastEnd(); ++iterator) {
     const grid_map::Index index(*iterator);
-    std::cout << "The value at index " << index.transpose() << " is " << data(index(0), index(1)) << std::endl;
+    map_.getPosition(index, position);
+    if (data(index(0), index(1)) > 90)
+        std::cout << "The value at index " << index.transpose() << " is " << data(index(0), index(1)) 
+            << "at position: " << position << std::endl;
+        
   }
 }
 
 void ChildFollowingAction::processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg)
 {
+  std::cout << "map: resolution: " << msg->info.resolution << std::endl;
+  grid_map::GridMapRosConverter::fromOccupancyGrid(*msg, "static", map_);
+  printGridMap();
+  costmap_sub_.shutdown();
 
 }
 
