@@ -100,6 +100,11 @@ void LegDetector::laserCallback(const sensor_msgs::LaserScan::ConstPtr &laserMsg
     people_msgs::People people_vector;
     people_msgs::PositionMeasurementArray position_vector;
 
+    people_vector.header.stamp = ros::Time::now();
+    people_vector.header.frame_id = "hokuyo_link";
+    position_vector.header.stamp = ros::Time::now();
+    position_vector.header.frame_id = "hokuyo_link";
+
     for (size_t i = 0; i < people.size(); i++)
     {
       std::stringstream personss;
@@ -111,8 +116,6 @@ void LegDetector::laserCallback(const sensor_msgs::LaserScan::ConstPtr &laserMsg
       ROS_INFO("person %ld at %.2f(x) %.2f(y)", i, center.x, center.y);
       visualisePerson(people[i]);
       personss << "id: " << i;
-      people_vector.header.stamp = ros::Time::now();
-      people_vector.header.frame_id = "hokuyo_link";
       person.name = personss.str();
       person.position.x = center.x;
       person.position.y = center.y;
