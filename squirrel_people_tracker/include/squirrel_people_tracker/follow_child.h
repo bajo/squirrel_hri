@@ -57,7 +57,7 @@ protected:
   double distance_;
   double target_distance_;
   
-  void LookAtChild(geometry_msgs::PoseStamped* pose, double height = 1.5);
+  void LookAtChild(geometry_msgs::PoseStamped* pose, double height = 1.3);
   void publishGoalMarker(float x, float y, float z, float red, float green, float blue, const char* name);
   bool VerifyChildAtPose(geometry_msgs::PoseStamped* pose,  double &height, double margin = 0.6);
   void printGridMap();
@@ -69,6 +69,7 @@ public:
   ros::ServiceClient pan_speed_client_;
   ros::ServiceClient tilt_speed_client_;
   ros::ServiceClient pan_tilt_client_;
+  ros::ServiceClient pan_tilt_angle_client_;
   ros::ServiceClient costmap_client_;
   ros::ServiceClient octomap_client_;
   ros::ServiceClient static_map_client_;

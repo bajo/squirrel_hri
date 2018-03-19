@@ -12,6 +12,7 @@
 
 
 #include <squirrel_view_controller_msgs/LookAtPosition.h>
+#include <squirrel_view_controller_msgs/LookAtPanTilt.h>
 
 
 typedef actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> MoveBaseClient;
@@ -42,6 +43,13 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
     return;
   }
 
+  pan_tilt_angle_client_ = nh_.serviceClient<squirrel_view_controller_msgs::LookAtPanTilt>("/squirrel_view_controller/move_pan_tilt", true);
+  if (!(ros::service::waitForService(pan_tilt_angle_client_.getService(), ros::Duration(5.0))))
+  {
+    ROS_ERROR("wait for service %s failed", pan_tilt_angle_client_.getService().c_str());
+    return;
+  }
+
   pan_tilt_client_ = nh_.serviceClient<squirrel_view_controller_msgs::LookAtPosition>("/squirrel_view_controller/look_at_position", true);
   if (!(ros::service::waitForService(pan_tilt_client_.getService(), ros::Duration(5.0))))
   {
@@ -67,6 +75,8 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   // register the goal and feeback callbacks
   as_.registerGoalCallback(boost::bind(&ChildFollowingAction::goalCB, this));
   as_.registerPreemptCallback(boost::bind(&ChildFollowingAction::preemptCB, this));
+  // subscribe to the data topic of interest
+  sub_ = nh_.subscribe("/spencer/perception/tracked_persons", 1, &ChildFollowingAction::analysisCB, this);
 
   costmap_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/move_base/global_costmap/costmap", 1, &ChildFollowingAction::processCostmapCB, this);
   as_.start();
@@ -91,9 +101,9 @@ void ChildFollowingAction::printGridMap()
   for (grid_map::GridMapIterator iterator(map_); !iterator.isPastEnd(); ++iterator) {
     const grid_map::Index index(*iterator);
     map_.getPosition(index, position);
-    if (data(index(0), index(1)) > 90)
+    if (data(index(0), index(1)) < 40)
         std::cout << "The value at index " << index.transpose() << " is " << data(index(0), index(1)) 
-            << "at position: " << position << std::endl;
+            << " at position: " << position << "m. " << std::endl;
         
   }
 }
@@ -115,6 +125,7 @@ bool ChildFollowingAction::verifyDetection(const geometry_msgs::PoseStamped pose
 
   std::cout << map_pose.header.frame_id << std::endl;
   grid_map::Position position(map_pose.pose.position.x, map_pose.pose.position.y);
+  ROS_INFO("grid value is: %lf", map_.atPosition("static", position));
   if (map_.atPosition("static", position) < 40)
       return true;
   return false;
@@ -132,7 +143,19 @@ void ChildFollowingAction::processCostmapCB(const nav_msgs::OccupancyGridConstPt
 
 void ChildFollowingAction::goalCB()
 {
+
+  squirrel_view_controller_msgs::LookAtPanTilt srv;
+  if (nh_.hasParam("/move_base/global_costmap/ObstaclesLayer/DepthCameraLayer/enabled"))
+  {
+      nh_.setParam("/move_base/global_costmap/ObstaclesLayer/DepthCameraLayer/enabled", false);
+  }
+
+  srv.request.pan = 0.0;
+  srv.request.tilt = 0.5;
+  pan_tilt_angle_client_.call(srv);
+
   goal_ = as_.acceptNewGoal();
+
   /*
    for (size_t i=0; i < goal_->target_locations.size(); ++i)
   {
@@ -196,6 +219,20 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
     ROS_DEBUG("No people in message"); 
     return;
   }
+  geometry_msgs::PoseStamped tmp_pose;
+  tmp_pose.header.stamp = ros::Time(0);
+  tmp_pose.header.frame_id = msg->header.frame_id;
+  tmp_pose.pose = msg->tracks[0].pose.pose;
+  tmp_pose.pose.position.z = 1.3;
+  LookAtChild(&tmp_pose);
+
+  ROS_INFO("State of move_base action server: %s", move_base_ac_->getState().toString().c_str());
+   if (move_base_ac_->getState() == actionlib::SimpleClientGoalState::ACTIVE)
+   {
+     ROS_INFO("move_base has an active goal. Wait for it to finish.");
+     return;
+   }
+
   std_msgs::Bool octomap_update;
   octomap_update.data = false;
   octomap_pub_.publish(octomap_update);
@@ -203,7 +240,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   octomap_client_.call(empty);
   costmap_client_.call(empty);
 
-  geometry_msgs::PoseStamped robot_pose, child_pose, tmp_pose, out_pose, detection_pose;
+  geometry_msgs::PoseStamped robot_pose, child_pose, out_pose, detection_pose;
   move_base_msgs::MoveBaseGoal move_base_goal_;
   double min_distance = 1000.0;
   int index = 0;
@@ -212,7 +249,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   bool child_present = false;
 
   ROS_DEBUG("time diff: %f", time_diff);
-  if (time_diff < 1.0)
+  if (time_diff < 2.0)
   {
     return;
   }
@@ -227,14 +264,11 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
 
   for (size_t i = 0; i < msg->tracks.size(); ++i)
   {
-    detection_pose.pose = msg->tracks[i].pose.pose;
+    //detection_pose.pose = msg->tracks[i].pose.pose;
     if (!verifyDetection(detection_pose))
         continue;
 
     distance = calculateDistanceFromRobot(detection_pose);
-    //tmp_pose.pose.position.z = 1.3;
-    //LookAtChild(&tmp_pose);
-
     ROS_DEBUG("Current distance is: %lf", distance);
     if (distance < min_distance)
     {
@@ -275,6 +309,10 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
       // make sure we stop now
       ROS_INFO("%s: Succeeded", action_name_.c_str());
       result_.final_location = child_pose;
+      if (nh_.hasParam("/move_base/global_costmap/ObstaclesLayer/DepthCameraLayer/enabled"))
+      {
+          nh_.setParam("/move_base/global_costmap/ObstaclesLayer/DepthCameraLayer/enabled", false);
+      }
       as_.setSucceeded(result_);
     }
   }
@@ -330,7 +368,7 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
 
   ROS_INFO("Sending goal to move_base");
   move_base_ac_->sendGoal(move_base_goal_);
-  //LookAtChild(&child_pose);
+  LookAtChild(&child_pose);
 
   init_ = ros::Time::now();
   ros::Duration(0.25).sleep();
@@ -531,7 +569,8 @@ void ChildFollowingAction::LookAtChild(geometry_msgs::PoseStamped* pose, double 
   srv.request.target.header.stamp = pose->header.stamp;
   srv.request.target.pose.position.x = pose->pose.position.x;
   srv.request.target.pose.position.y = pose->pose.position.y;
-  srv.request.target.pose.position.z = height;
+  srv.request.target.pose.position.z = pose->pose.position.z;
+  //srv.request.target.pose.position.z = height;
   srv.request.target.pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
 
   if (pan_tilt_client_.call(srv))
