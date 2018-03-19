@@ -29,6 +29,7 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <grid_map_core/grid_map_core.hpp>
 #include <grid_map_core/GridMap.hpp>
+#include <squirrel_speech_msgs/RecognizedCommand.h>
 
 
 class ChildFollowingAction
@@ -51,6 +52,7 @@ protected:
   ros::Time init_;
   geometry_msgs::Pose last_goal_;
   grid_map::GridMap map_;
+  bool stop_cmd_received_;
 
 
   int id_;
@@ -80,6 +82,7 @@ public:
   ros::Publisher octomap_pub_;
   ros::Publisher cloud_pub_;
   ros::Subscriber sub_;
+  ros::Subscriber speech_sub_;
   ros::Subscriber costmap_sub_;
 
   void goalCB();
@@ -87,6 +90,7 @@ public:
   void analysisCB(const spencer_tracking_msgs::TrackedPersons::ConstPtr &msg);
   double calculateDistanceFromRobot(geometry_msgs::PoseStamped pose1);
   void processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg);
+  void processSpeechCB(const squirrel_speech_msgs::RecognizedCommandConstPtr& msg);
 
   ChildFollowingAction(std::string name);
   ~ChildFollowingAction();

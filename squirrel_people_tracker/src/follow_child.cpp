@@ -9,8 +9,9 @@
 #include <std_srvs/Empty.h>
 #include <grid_map_ros/grid_map_ros.hpp>
 #include <nav_msgs/GetMap.h>
+#include <boost/algorithm/string.hpp>
 
-
+#include <squirrel_speech_msgs/RecognizedCommand.h>
 #include <squirrel_view_controller_msgs/LookAtPosition.h>
 #include <squirrel_view_controller_msgs/LookAtPanTilt.h>
 
@@ -28,6 +29,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
 {
   init_ = ros::Time::now();
   id_ = 0;
+  stop_cmd_received_ = false;
   
   octomap_client_= nh_.serviceClient<std_srvs::Empty>("/squirrel_3d_mapping/reset", true);
   if (!(ros::service::waitForService(octomap_client_.getService(), ros::Duration(5.0))))
@@ -77,7 +79,7 @@ ChildFollowingAction::ChildFollowingAction(std::string name) : as_(nh_, name, fa
   as_.registerPreemptCallback(boost::bind(&ChildFollowingAction::preemptCB, this));
   // subscribe to the data topic of interest
   sub_ = nh_.subscribe("/spencer/perception/tracked_persons", 1, &ChildFollowingAction::analysisCB, this);
-
+  speech_sub_ = nh_.subscribe<squirrel_speech_msgs::RecognizedCommand>("/squirrel_speech_rec/squirrel_speech_recognized_commands", 1, &ChildFollowingAction::processSpeechCB, this);
   costmap_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/move_base/global_costmap/costmap", 1, &ChildFollowingAction::processCostmapCB, this);
   as_.start();
 
@@ -131,6 +133,15 @@ bool ChildFollowingAction::verifyDetection(const geometry_msgs::PoseStamped pose
   return false;
 }
 
+void ChildFollowingAction::processSpeechCB(const squirrel_speech_msgs::RecognizedCommandConstPtr& msg)
+{
+  std::string stop = "stop";
+  if (boost::iequals(msg->int_command, stop))
+  {
+      stop_cmd_received_ = true;
+  }
+
+}
 void ChildFollowingAction::processCostmapCB(const nav_msgs::OccupancyGridConstPtr& msg)
 {
   std::cout << "map: resolution: " << msg->info.resolution << std::endl;
@@ -225,6 +236,19 @@ void ChildFollowingAction::analysisCB(const spencer_tracking_msgs::TrackedPerson
   tmp_pose.pose = msg->tracks[0].pose.pose;
   tmp_pose.pose.position.z = 1.3;
   LookAtChild(&tmp_pose);
+
+  if (stop_cmd_received_ == true)
+  {
+
+      squirrel_view_controller_msgs::LookAtPanTilt srv;
+      srv.request.pan = 0.0;
+      srv.request.tilt = -0.7;
+      pan_tilt_angle_client_.call(srv);
+
+      result_.final_location = tmp_pose;
+      as_.setSucceeded(result_);
+      return;
+  }
 
   ROS_INFO("State of move_base action server: %s", move_base_ac_->getState().toString().c_str());
    if (move_base_ac_->getState() == actionlib::SimpleClientGoalState::ACTIVE)
